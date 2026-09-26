@@ -25,10 +25,20 @@ export type Apartado = {
 
 export type ApartadoListItem = Apartado & {
     producto: Pick<Product, 'idProduct' | 'Name_Product'>;
+    saldo_pagado: string;
 };
 
 export type ApartadoDetail = Apartado & {
     producto: Product;
     abonos: Abono[];
     vencido_por_fecha: boolean;
+};
+
+export type ApartadoFilters = {
+    buscar: string;
+    estado: EstadoApartado | '';
+    producto_id: string;
+    desde: string;
+    hasta: string;
+    orden: string;
 };

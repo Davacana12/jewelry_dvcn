@@ -3,9 +3,11 @@
 namespace App\Models;
 
 use App\EstadoApartado;
+use App\Models\Builders\ApartadoBuilder;
 use Database\Factories\ApartadoFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Table;
+use Illuminate\Database\Eloquent\Attributes\UseEloquentBuilder;
 use Illuminate\Database\Eloquent\Attributes\WithoutTimestamps;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -27,8 +29,11 @@ use Illuminate\Support\Carbon;
  * @property EstadoApartado $estado
  * @property-read Product $producto
  * @property-read Collection<int, Abono> $abonos
+ *
+ * @method static ApartadoBuilder query()
  */
 #[Table('Apartados', key: 'id_apartados')]
+#[UseEloquentBuilder(ApartadoBuilder::class)]
 #[WithoutTimestamps]
 #[Fillable(['nombre_cliente', 'telefono_cliente', 'producto_id', 'cantidad', 'total_compra', 'anticipo', 'fecha_apartada', 'fecha_limite', 'estado'])]
 class Apartado extends Model

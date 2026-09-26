@@ -3,14 +3,12 @@
 namespace App\Http\Controllers;
 
 use App\EstadoApartado;
+use App\Http\Requests\FilterApartadosRequest;
 use App\Http\Requests\StoreApartadoRequest;
 use App\Models\Apartado;
 use App\Models\Product;
-use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -18,35 +16,29 @@ use Inertia\Response;
 class ApartadoController extends Controller
 {
     /**
-     * Show the list of apartados, optionally filtered by client or status.
+     * Show the list of apartados, filtered by the query string.
      */
-    public function index(Request $request): Response
+    public function index(FilterApartadosRequest $request): Response
     {
-        $filters = $request->validate([
-            'buscar' => ['nullable', 'string', 'max:255'],
-            'estado' => ['nullable', Rule::enum(EstadoApartado::class)],
-        ]);
+        $filters = $request->filters();
 
         $apartados = Apartado::query()
             ->with('producto:idProduct,Name_Product')
             ->withSum('abonos', 'monto')
-            ->when($filters['buscar'] ?? null, fn (Builder $query, string $buscar) => $query->where('nombre_cliente', 'like', "%{$buscar}%"))
-            ->when($filters['estado'] ?? null, fn (Builder $query, string $estado) => $query->where('estado', $estado))
-            ->latest('fecha_apartada')
-            ->latest('id_apartados')
+            ->filter($filters)
             ->paginate(15)
             ->withQueryString()
             ->through(fn (Apartado $apartado) => [
                 ...$apartado->toArray(),
-                'saldo_pendiente' => $this->saldoPendiente($apartado),
+                ...$this->saldos($apartado),
             ]);
 
         return Inertia::render('apartados/index', [
             'apartados' => $apartados,
-            'filters' => [
-                'buscar' => $filters['buscar'] ?? '',
-                'estado' => $filters['estado'] ?? '',
-            ],
+            'filters' => array_map(fn (mixed $value): string => (string) $value, $filters),
+            'products' => Product::query()
+                ->orderBy('Name_Product')
+                ->get(['idProduct', 'Name_Product']),
         ]);
     }
 
@@ -144,14 +136,18 @@ class ApartadoController extends Controller
     }
 
     /**
-     * Get the pending balance of an apartado loaded with its payments sum.
+     * Get the paid and pending balances of an apartado loaded with its payments sum.
+     *
+     * @return array{saldo_pagado: string, saldo_pendiente: string}
      */
-    private function saldoPendiente(Apartado $apartado): string
+    private function saldos(Apartado $apartado): array
     {
-        $saldoCents = Apartado::toCents($apartado->total_compra)
-            - Apartado::toCents($apartado->anticipo)
-            - Apartado::toCents($apartado->abonos_sum_monto ?? 0);
+        $totalCents = Apartado::toCents($apartado->total_compra);
+        $pagadoCents = Apartado::toCents($apartado->anticipo) + Apartado::toCents($apartado->abonos_sum_monto ?? 0);
 
-        return number_format($saldoCents / 100, 2, '.', '');
+        return [
+            'saldo_pagado' => number_format($pagadoCents / 100, 2, '.', ''),
+            'saldo_pendiente' => number_format(($totalCents - $pagadoCents) / 100, 2, '.', ''),
+        ];
     }
 }
