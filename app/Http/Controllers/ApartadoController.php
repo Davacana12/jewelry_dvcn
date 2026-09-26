@@ -92,7 +92,7 @@ class ApartadoController extends Controller
             ? 'Apartado registrado y liquidado.'
             : 'Apartado registrado.']);
 
-        return to_route('apartados.show', $apartado);
+        return to_route('apartados.index');
     }
 
     /**

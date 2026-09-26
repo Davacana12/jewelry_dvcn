@@ -51,7 +51,8 @@ test('an apartado is created with the computed total and reserves stock', functi
             'cantidad' => 2,
             'anticipo' => 120,
         ])
-        ->assertSessionHasNoErrors();
+        ->assertSessionHasNoErrors()
+        ->assertRedirect(route('apartados.index'));
 
     $apartado = Apartado::sole();
 
