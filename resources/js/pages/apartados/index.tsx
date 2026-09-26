@@ -107,6 +107,15 @@ export default function Apartados({
                                         </td>
                                         <td className="px-4 py-2 text-right tabular-nums">
                                             {formatMoney(apartado.total_compra)}
+                                            {Number(apartado.multas) > 0 && (
+                                                <div className="text-xs text-red-600 dark:text-red-400">
+                                                    +{' '}
+                                                    {formatMoney(
+                                                        apartado.multas,
+                                                    )}{' '}
+                                                    en multas
+                                                </div>
+                                            )}
                                         </td>
                                         <td className="px-4 py-2 text-right tabular-nums">
                                             {formatMoney(apartado.saldo_pagado)}
@@ -133,7 +142,9 @@ export default function Apartados({
                                                 <Link href={show(apartado)}>
                                                     <HandCoins />
                                                     {apartado.estado ===
-                                                    'activo'
+                                                        'activo' ||
+                                                    apartado.estado ===
+                                                        'en_riesgo'
                                                         ? 'Abonar'
                                                         : 'Ver abonos'}
                                                 </Link>

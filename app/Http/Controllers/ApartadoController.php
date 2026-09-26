@@ -25,6 +25,7 @@ class ApartadoController extends Controller
         $apartados = Apartado::query()
             ->with('producto:idProduct,Name_Product')
             ->withSum('abonos', 'monto')
+            ->withSum('abonos', 'multa')
             ->filter($filters)
             ->paginate(15)
             ->withQueryString()
@@ -101,24 +102,36 @@ class ApartadoController extends Controller
     {
         $apartado->load(['producto', 'abonos' => fn ($query) => $query->latest('fecha_monto')->latest('id_abono')]);
 
+        $saldoCents = $apartado->saldoPendienteCents();
+        $enGracia = $apartado->isVigente() && $apartado->isInGracePeriod();
+
         return Inertia::render('apartados/show', [
             'apartado' => [
                 ...$apartado->toArray(),
-                'saldo_pendiente' => number_format($apartado->saldoPendienteCents() / 100, 2, '.', ''),
-                'vencido_por_fecha' => $apartado->isActivo() && $apartado->isPastDeadline(),
+                'saldo_pendiente' => number_format($saldoCents / 100, 2, '.', ''),
+                'acepta_abonos' => $apartado->isVigente() && ! $apartado->isPastGracePeriod(),
+                'en_gracia' => $enGracia,
+                'plazo_vencido' => $apartado->isVigente() && $apartado->isPastGracePeriod(),
+                'fecha_fin_gracia' => $apartado->fechaFinDeGracia()->toDateString(),
+                'multa_si_abona' => number_format(($enGracia ? Apartado::multaCentsFor($saldoCents) : 0) / 100, 2, '.', ''),
+            ],
+            'reglas' => [
+                'diasParaPagar' => Apartado::DIAS_PARA_PAGAR,
+                'diasDeGracia' => Apartado::DIAS_DE_GRACIA,
+                'porcentajeMulta' => Apartado::PORCENTAJE_MULTA,
             ],
         ]);
     }
 
     /**
-     * Cancel an active apartado and return its pieces to the product's stock.
+     * Cancel an open apartado and return its pieces to the product's stock.
      */
     public function cancel(Apartado $apartado): RedirectResponse
     {
         $cancelled = DB::transaction(function () use ($apartado): bool {
             $apartado = Apartado::query()->lockForUpdate()->findOrFail($apartado->id_apartados);
 
-            if (! $apartado->isActivo()) {
+            if (! $apartado->isVigente()) {
                 return false;
             }
 
@@ -130,15 +143,15 @@ class ApartadoController extends Controller
 
         Inertia::flash('toast', $cancelled
             ? ['type' => 'success', 'message' => 'Apartado cancelado. Las piezas volvieron al stock.']
-            : ['type' => 'error', 'message' => 'Solo se pueden cancelar apartados activos.']);
+            : ['type' => 'error', 'message' => 'Solo se pueden cancelar apartados activos o en riesgo.']);
 
         return to_route('apartados.show', $apartado);
     }
 
     /**
-     * Get the paid and pending balances of an apartado loaded with its payments sum.
+     * Get the paid and pending balances and fines of an apartado loaded with its payment sums.
      *
-     * @return array{saldo_pagado: string, saldo_pendiente: string}
+     * @return array{saldo_pagado: string, saldo_pendiente: string, multas: string}
      */
     private function saldos(Apartado $apartado): array
     {
@@ -148,6 +161,7 @@ class ApartadoController extends Controller
         return [
             'saldo_pagado' => number_format($pagadoCents / 100, 2, '.', ''),
             'saldo_pendiente' => number_format(($totalCents - $pagadoCents) / 100, 2, '.', ''),
+            'multas' => number_format(Apartado::toCents($apartado->abonos_sum_multa ?? 0) / 100, 2, '.', ''),
         ];
     }
 }

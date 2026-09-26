@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Carbon\CarbonImmutable;
 use Database\Factories\AbonoFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Table;
@@ -9,18 +10,18 @@ use Illuminate\Database\Eloquent\Attributes\WithoutTimestamps;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Support\Carbon;
 
 /**
  * @property int $id_abono
  * @property int $id_apartado
  * @property string $monto
- * @property Carbon $fecha_monto
+ * @property string $multa
+ * @property CarbonImmutable $fecha_monto
  * @property-read Apartado $apartado
  */
 #[Table('Abonos', key: 'id_abono')]
 #[WithoutTimestamps]
-#[Fillable(['id_apartado', 'monto', 'fecha_monto'])]
+#[Fillable(['id_apartado', 'monto', 'multa', 'fecha_monto'])]
 class Abono extends Model
 {
     /** @use HasFactory<AbonoFactory> */
@@ -45,6 +46,7 @@ class Abono extends Model
     {
         return [
             'monto' => 'decimal:2',
+            'multa' => 'decimal:2',
             'fecha_monto' => 'datetime',
         ];
     }

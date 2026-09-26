@@ -54,26 +54,66 @@ test('invalid payments are rejected', function (mixed $monto, string $message) {
     'above the balance' => [480.01, 'El abono no puede ser mayor al saldo pendiente de $480.00.'],
 ]);
 
-test('payments are rejected on apartados that are not active', function () {
+test('payments are rejected on apartados that are not open', function () {
     $user = User::factory()->create();
     $apartado = Apartado::factory()->cancelado()->create();
 
     $this->actingAs($user)
         ->post(route('apartados.abonos.store', $apartado), ['monto' => 10])
-        ->assertSessionHasErrors(['monto' => 'Solo se pueden registrar abonos en apartados activos.']);
+        ->assertSessionHasErrors(['monto' => 'Solo se pueden registrar abonos en apartados activos o en riesgo.']);
 });
 
-test('payments are accepted on the deadline day and rejected after it', function () {
+test('a payment on the deadline day has no fine', function () {
     $user = User::factory()->create();
     $apartado = apartadoDe600();
 
-    $this->travelTo($apartado->fecha_limite->copy()->setTime(18, 0));
+    $this->travelTo($apartado->fecha_limite->setTime(18, 0));
     $this->actingAs($user)
-        ->post(route('apartados.abonos.store', $apartado), ['monto' => 10])
+        ->post(route('apartados.abonos.store', $apartado), ['monto' => 100])
         ->assertSessionHasNoErrors();
 
-    $this->travelTo($apartado->fecha_limite->copy()->addDay());
+    expect($apartado->abonos()->sole()->multa)->toBe('0.00')
+        ->and($apartado->refresh()->estado)->toBe(EstadoApartado::Activo);
+});
+
+test('a payment during the grace period pays a 2% fine and starts a new 15 day period', function () {
+    $user = User::factory()->create();
+    $apartado = apartadoDe600();
+    $apartado->update(['estado' => EstadoApartado::EnRiesgo]);
+    $fechaLimite = $apartado->fecha_limite;
+
+    $this->travelTo($fechaLimite->addDays(3)->setTime(12, 0));
     $this->actingAs($user)
-        ->post(route('apartados.abonos.store', $apartado), ['monto' => 10])
-        ->assertSessionHasErrors(['monto' => 'La fecha límite de este apartado ya pasó.']);
+        ->post(route('apartados.abonos.store', $apartado), ['monto' => 100])
+        ->assertSessionHasNoErrors();
+
+    expect($apartado->abonos()->sole())
+        ->monto->toBe('100.00')
+        ->multa->toBe('9.60')
+        ->and($apartado->refresh()->estado)->toBe(EstadoApartado::Activo)
+        ->and($apartado->fecha_limite->toDateString())->toBe($fechaLimite->addDays(15)->toDateString())
+        ->and($apartado->saldoPendienteCents())->toBe(38000);
+});
+
+test('paying off the balance during the grace period still pays the fine', function () {
+    $user = User::factory()->create();
+    $apartado = apartadoDe600();
+
+    $this->travelTo($apartado->fecha_limite->addDay());
+    $this->actingAs($user)->post(route('apartados.abonos.store', $apartado), ['monto' => 480]);
+
+    expect($apartado->abonos()->sole()->multa)->toBe('9.60')
+        ->and($apartado->refresh()->estado)->toBe(EstadoApartado::Liquidado);
+});
+
+test('payments are rejected once the grace period is over', function () {
+    $user = User::factory()->create();
+    $apartado = apartadoDe600();
+
+    $this->travelTo($apartado->fecha_limite->addDays(4));
+    $this->actingAs($user)
+        ->post(route('apartados.abonos.store', $apartado), ['monto' => 100])
+        ->assertSessionHasErrors('monto');
+
+    expect($apartado->abonos()->count())->toBe(0);
 });

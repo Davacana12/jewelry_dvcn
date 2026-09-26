@@ -4,6 +4,7 @@ import type { EstadoApartado } from '@/types';
 
 export const estadoLabels: Record<EstadoApartado, string> = {
     activo: 'Activo',
+    en_riesgo: 'En riesgo',
     liquidado: 'Liquidado',
     vencido: 'Vencido',
     cancelado: 'Cancelado',
@@ -11,6 +12,8 @@ export const estadoLabels: Record<EstadoApartado, string> = {
 
 const estadoStyles: Record<EstadoApartado, string> = {
     activo: 'border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-900 dark:bg-blue-950 dark:text-blue-300',
+    en_riesgo:
+        'border-red-200 bg-red-50 text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300',
     liquidado:
         'border-green-200 bg-green-50 text-green-700 dark:border-green-900 dark:bg-green-950 dark:text-green-300',
     vencido:

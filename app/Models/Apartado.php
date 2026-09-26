@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\EstadoApartado;
 use App\Models\Builders\ApartadoBuilder;
+use Carbon\CarbonImmutable;
 use Database\Factories\ApartadoFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Table;
@@ -14,7 +15,6 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use Illuminate\Support\Carbon;
 
 /**
  * @property int $id_apartados
@@ -24,8 +24,8 @@ use Illuminate\Support\Carbon;
  * @property int $cantidad
  * @property string $total_compra
  * @property string $anticipo
- * @property Carbon $fecha_apartada
- * @property Carbon $fecha_limite
+ * @property CarbonImmutable $fecha_apartada
+ * @property CarbonImmutable $fecha_limite
  * @property EstadoApartado $estado
  * @property-read Product $producto
  * @property-read Collection<int, Abono> $abonos
@@ -50,6 +50,16 @@ class Apartado extends Model
      * The minimum down payment, as a percentage of the total.
      */
     public const int PORCENTAJE_ANTICIPO_MINIMO = 20;
+
+    /**
+     * Days after the deadline during which payments are still accepted with a fine.
+     */
+    public const int DIAS_DE_GRACIA = 3;
+
+    /**
+     * Fine charged on each late payment, as a percentage of the pending balance.
+     */
+    public const int PORCENTAJE_MULTA = 2;
 
     /**
      * Get the product that was put on layaway.
@@ -96,19 +106,44 @@ class Apartado extends Model
     }
 
     /**
-     * Determine whether the apartado can still receive payments or be cancelled.
+     * Get the fine in cents for a late payment on the given pending balance.
      */
-    public function isActivo(): bool
+    public static function multaCentsFor(int $saldoPendienteCents): int
     {
-        return $this->estado === EstadoApartado::Activo;
+        return (int) round($saldoPendienteCents * self::PORCENTAJE_MULTA / 100);
     }
 
     /**
-     * Determine whether the payment deadline has passed.
+     * Determine whether the apartado is still open: it can receive payments or be cancelled.
      */
-    public function isPastDeadline(): bool
+    public function isVigente(): bool
     {
-        return $this->fecha_limite->copy()->endOfDay()->isPast();
+        return $this->estado->isVigente();
+    }
+
+    /**
+     * Get the last day late payments are accepted.
+     */
+    public function fechaFinDeGracia(): CarbonImmutable
+    {
+        return $this->fecha_limite->addDays(self::DIAS_DE_GRACIA);
+    }
+
+    /**
+     * Determine whether the deadline has passed but late payments are still accepted.
+     */
+    public function isInGracePeriod(): bool
+    {
+        return today()->greaterThan($this->fecha_limite)
+            && today()->lessThanOrEqualTo($this->fechaFinDeGracia());
+    }
+
+    /**
+     * Determine whether the grace period after the deadline is over.
+     */
+    public function isPastGracePeriod(): bool
+    {
+        return today()->greaterThan($this->fechaFinDeGracia());
     }
 
     /**

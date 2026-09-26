@@ -11,7 +11,7 @@ use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 
 #[Signature('apartados:vencer')]
-#[Description('Mark active apartados past their deadline as expired and return their pieces to stock')]
+#[Description('Mark apartados past their deadline as at risk, and expire those past the grace period, returning their pieces to stock')]
 class VencerApartados extends Command
 {
     /**
@@ -19,16 +19,22 @@ class VencerApartados extends Command
      */
     public function handle(): int
     {
+        $enRiesgo = Apartado::query()
+            ->where('estado', EstadoApartado::Activo)
+            ->whereDate('fecha_limite', '<', today())
+            ->whereDate('fecha_limite', '>=', today()->subDays(Apartado::DIAS_DE_GRACIA))
+            ->update(['estado' => EstadoApartado::EnRiesgo]);
+
         $vencidos = 0;
 
         Apartado::query()
-            ->where('estado', EstadoApartado::Activo)
-            ->whereDate('fecha_limite', '<', today())
+            ->whereIn('estado', [EstadoApartado::Activo, EstadoApartado::EnRiesgo])
+            ->whereDate('fecha_limite', '<', today()->subDays(Apartado::DIAS_DE_GRACIA))
             ->eachById(function (Apartado $apartado) use (&$vencidos): void {
                 DB::transaction(function () use ($apartado, &$vencidos): void {
                     $apartado = Apartado::query()->lockForUpdate()->findOrFail($apartado->id_apartados);
 
-                    if (! $apartado->isActivo()) {
+                    if (! $apartado->isVigente() || ! $apartado->isPastGracePeriod()) {
                         return;
                     }
 
@@ -39,7 +45,7 @@ class VencerApartados extends Command
                 });
             }, column: 'id_apartados');
 
-        $this->info("Apartados vencidos: {$vencidos}");
+        $this->info("Apartados en riesgo: {$enRiesgo}. Apartados vencidos: {$vencidos}.");
 
         return self::SUCCESS;
     }

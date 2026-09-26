@@ -34,14 +34,18 @@ class StoreAbonoRequest extends FormRequest
                 /** @var Apartado $apartado */
                 $apartado = $this->route('apartado');
 
-                if (! $apartado->isActivo()) {
-                    $validator->errors()->add('monto', 'Solo se pueden registrar abonos en apartados activos.');
+                if (! $apartado->isVigente()) {
+                    $validator->errors()->add('monto', 'Solo se pueden registrar abonos en apartados activos o en riesgo.');
 
                     return;
                 }
 
-                if ($apartado->isPastDeadline()) {
-                    $validator->errors()->add('monto', 'La fecha límite de este apartado ya pasó.');
+                if ($apartado->isPastGracePeriod()) {
+                    $validator->errors()->add('monto', sprintf(
+                        'El plazo de este apartado venció: los %d días de gracia terminaron el %s.',
+                        Apartado::DIAS_DE_GRACIA,
+                        $apartado->fechaFinDeGracia()->format('d/m/Y'),
+                    ));
 
                     return;
                 }

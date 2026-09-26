@@ -58,13 +58,25 @@ class ApartadoFactory extends Factory
     }
 
     /**
-     * Indicate that the apartado's payment deadline has passed.
+     * Indicate that the deadline passed yesterday, so the apartado is in its grace period.
      */
-    public function pastDeadline(): static
+    public function enRiesgo(): static
     {
         return $this->state(fn (array $attributes) => [
             'fecha_apartada' => now()->subDays(Apartado::DIAS_PARA_PAGAR + 1),
             'fecha_limite' => today()->subDay(),
+            'estado' => EstadoApartado::EnRiesgo,
+        ]);
+    }
+
+    /**
+     * Indicate that the grace period after the deadline is over.
+     */
+    public function pastGracePeriod(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'fecha_apartada' => now()->subDays(Apartado::DIAS_PARA_PAGAR + Apartado::DIAS_DE_GRACIA + 1),
+            'fecha_limite' => today()->subDays(Apartado::DIAS_DE_GRACIA + 1),
         ]);
     }
 }

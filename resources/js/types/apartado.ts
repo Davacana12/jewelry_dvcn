@@ -1,11 +1,17 @@
 import type { Product } from './product';
 
-export type EstadoApartado = 'activo' | 'liquidado' | 'vencido' | 'cancelado';
+export type EstadoApartado =
+    | 'activo'
+    | 'en_riesgo'
+    | 'liquidado'
+    | 'vencido'
+    | 'cancelado';
 
 export type Abono = {
     id_abono: number;
     id_apartado: number;
     monto: string;
+    multa: string;
     fecha_monto: string;
 };
 
@@ -26,12 +32,23 @@ export type Apartado = {
 export type ApartadoListItem = Apartado & {
     producto: Pick<Product, 'idProduct' | 'Name_Product'>;
     saldo_pagado: string;
+    multas: string;
 };
 
 export type ApartadoDetail = Apartado & {
     producto: Product;
     abonos: Abono[];
-    vencido_por_fecha: boolean;
+    acepta_abonos: boolean;
+    en_gracia: boolean;
+    plazo_vencido: boolean;
+    fecha_fin_gracia: string;
+    multa_si_abona: string;
+};
+
+export type ReglasAbono = {
+    diasParaPagar: number;
+    diasDeGracia: number;
+    porcentajeMulta: number;
 };
 
 export type ApartadoFilters = {

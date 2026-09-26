@@ -24,17 +24,18 @@ test('apartados can be searched by client name', function () {
             ->where('apartados.data.0.nombre_cliente', 'María López'));
 });
 
-test('the list shows the paid and pending balance of each apartado', function () {
+test('the list shows the paid and pending balance and fines of each apartado', function () {
     $user = User::factory()->create();
     $product = Product::factory()->create(['Cost' => 600]);
     $apartado = Apartado::factory()->for($product, 'producto')->create(['cantidad' => 1, 'anticipo' => 120]);
-    Abono::factory()->for($apartado)->create(['monto' => 80]);
+    Abono::factory()->for($apartado)->create(['monto' => 80, 'multa' => 9.6]);
 
     $this->actingAs($user)
         ->get(route('apartados.index'))
         ->assertInertia(fn ($page) => $page
             ->where('apartados.data.0.saldo_pagado', '200.00')
-            ->where('apartados.data.0.saldo_pendiente', '400.00'));
+            ->where('apartados.data.0.saldo_pendiente', '400.00')
+            ->where('apartados.data.0.multas', '9.60'));
 });
 
 test('an apartado is created with the computed total and reserves stock', function () {
@@ -133,10 +134,10 @@ test('empty fields show an error for each one', function () {
         ]);
 });
 
-test('cancelling an active apartado returns its pieces to stock', function () {
+test('cancelling an open apartado returns its pieces to stock', function (string $estado) {
     $user = User::factory()->create();
     $product = Product::factory()->create(['Stock' => 0]);
-    $apartado = Apartado::factory()->for($product, 'producto')->create(['cantidad' => 2]);
+    $apartado = Apartado::factory()->for($product, 'producto')->create(['cantidad' => 2, 'estado' => $estado]);
 
     $this->actingAs($user)
         ->patch(route('apartados.cancel', $apartado))
@@ -144,9 +145,9 @@ test('cancelling an active apartado returns its pieces to stock', function () {
 
     expect($apartado->refresh()->estado)->toBe(EstadoApartado::Cancelado)
         ->and($product->refresh()->Stock)->toBe(2);
-});
+})->with(['activo', 'en_riesgo']);
 
-test('only active apartados can be cancelled', function () {
+test('closed apartados cannot be cancelled', function () {
     $user = User::factory()->create();
     $product = Product::factory()->create(['Stock' => 0]);
     $apartado = Apartado::factory()->for($product, 'producto')->liquidado()->create();
